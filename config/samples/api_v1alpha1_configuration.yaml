@@ -1,0 +1,7 @@
+apiVersion: api.core.anaisurl.com/v1alpha1
+kind: Configuration
+metadata:
+  name: configuration-sample
+spec:
+  type: "foo"
+  setting: "default"

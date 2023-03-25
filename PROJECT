@@ -5,17 +5,27 @@
 domain: core.anaisurl.com
 layout:
 - go.kubebuilder.io/v3
+multigroup: true
 projectName: controller
 repo: github.com/AnaisUrlichs/security-controller
 resources:
 - controller: true
-  group: apps
-  kind: Deployment
-  path: k8s.io/api/apps/v1
-  version: v1
-- controller: true
   group: core
   kind: Pod
   path: k8s.io/api/core/v1
+  version: v1
+- api:
+    crdVersion: v1
+    namespaced: true
+  controller: true
+  domain: core.anaisurl.com
+  group: api
+  kind: Configuration
+  path: github.com/AnaisUrlichs/security-controller/apis/api/v1alpha1
+  version: v1alpha1
+- controller: true
+  group: apps
+  kind: Deployment
+  path: k8s.io/api/apps/v1
   version: v1
 version: "3"
