@@ -28,8 +28,32 @@ type ConfigurationSpec struct {
 	// INSERT ADDITIONAL SPEC FIELDS - desired st ate of cluster
 	// Important: Run "make" to regenerate code after modifying this file
 
-	// Foo is an example field of Configuration. Edit configuration_types.go to remove/update
+	// Set Container Imagetag
+	ImageTag string `json:"imageTag,omitempty"`
+
+	// Set ContainerPort
 	ContainerPort int32 `json:"containerPort,omitempty"`
+
+	// Set allowPrivilegeEscalation
+	AllowPrivilegeEscalation bool `json:"allowPrivilegeEscalation,omitempty"`
+
+	// Set readOnlyRootFilesystem
+	ReadOnlyRootFilesystem bool `json:"readOnlyRootFilesystem,omitempty"`
+
+	// Set runAsNonRoot
+	RunAsNonRoot bool `json:"runAsNonRoot,omitempty"`
+
+	// CPU limits
+	CPULimits int64 `json:"limits,omitempty"`
+
+	// Memory limits
+	MemoryLimits int64 `json:"memorylimits,omitempty"`
+
+	//CPU requests
+	CPURequests int64 `json:"requests,omitempty"`
+
+	// Memory requests
+	MemoryRequests int64 `json:"memoryrequests,omitempty"`
 }
 
 // ConfigurationStatus defines the observed state of Configuration

@@ -3,5 +3,11 @@ kind: Configuration
 metadata:
   name: configuration-sample
 spec:
-  type: "foo"
-  setting: "default"
+  containerPort: 60
+  imageTag: "latest"
+  limits: 400
+  readOnlyRootFilesystem: true
+  requests: 300
+  runAsNonRoot: true
+  memoryrequests: 80
+  memorylimits: 130

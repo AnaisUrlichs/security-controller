@@ -18,6 +18,8 @@ package api
 
 import (
 	"context"
+	"strings"
+	"time"
 
 	"github.com/go-logr/logr"
 	"k8s.io/apimachinery/pkg/api/errors"
@@ -25,9 +27,10 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
+	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
-	v1alpha1 "github.com/AnaisUrlichs/security-controller/apis/api/v1alpha1"
+	apiv1alpha1 "github.com/AnaisUrlichs/security-controller/apis/api/v1alpha1"
 	kapps "k8s.io/api/apps/v1"
 )
 
@@ -38,12 +41,17 @@ type ConfigurationReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=api.core.anaisurl.com,resources=configurations,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=api.core.anaisurl.com,resources=configurations/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=api.core.anaisurl.com,resources=configurations/finalizers,verbs=update
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get
+const (
+	reconcileErrorInterval   = 10 * time.Second
+	reconcileSuccessInterval = 120 * time.Second
+	annotationName           = "anaisurl.com/misconfiguration"
+)
 
+// +kubebuilder:rbac:groups=api.core.anaisurl.com,resources=configurations,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=api.core.anaisurl.com,resources=configurations/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=api.core.anaisurl.com,resources=configurations/finalizers,verbs=update
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;list;watch;create;update;patch;delete
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
 // TODO(user): Modify the Reconcile function to compare the state specified by
@@ -54,61 +62,138 @@ type ConfigurationReconciler struct {
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
 func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
-	l := log.FromContext(ctx)
-	log := r.Log.WithValues("simpleDeployment", req.NamespacedName)
 
-	var misconfDeployment v1alpha1.Configuration
-	if err := r.Get(ctx, req.NamespacedName, &misconfDeployment); err != nil {
-		log.Error(err, "unable to fetch Misconfiguratin-labelled Deployment")
-		// we'll ignore not-found errors, since they can't be fixed by an immediate
-		// requeue (we'll need to wait for a new notification), and we can get them
-		// on deleted requests.
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+	log := log.FromContext(ctx)
+	log.Info("Reconciling deployments")
+
+	mdConf := &apiv1alpha1.Configuration{}
+	mdConfFinalizer := mdConf.GetFinalizers()
+
+	if err := r.Client.Get(ctx, req.NamespacedName, mdConf); err != nil {
+		if errors.IsNotFound(err) {
+			// taking down all associated K8s resources is handled by K8s
+			r.Log.Info("No Misconfiguration Configuration found.")
+			return r.finishReconcile(nil, false)
+		}
+		r.Log.Error(err, "Failed to get the Misconfiguration Configuration")
+		return r.finishReconcile(err, false)
 	}
 
-	// Add the Deployment spec defined to the cluster
-	deployment := &kapps.Deployment{}
+	if mdConf.ObjectMeta.DeletionTimestamp.IsZero() {
+		// The object is not being deleted, so if it does not have our finalizer,
+		// then lets add the finalizer and update the object. This is equivalent
+		// registering our finalizer.
+		if mdConfFinalizer == nil {
+			controllerutil.AddFinalizer(mdConf, annotationName)
+			if err := r.Update(ctx, mdConf); err != nil {
+				return r.finishReconcile(err, false)
+			}
+		}
 
-	// Set the information you care about
-	deployment.Spec.Template.Spec.Containers[0].Ports[0].HostPort = misconfDeployment.Spec.ContainerPort
+	} else {
+		// The object is being deleted
+		if mdConfFinalizer != nil {
+			controllerutil.RemoveFinalizer(mdConf, annotationName)
+			if err := r.Update(ctx, mdConf); err != nil {
+				return ctrl.Result{}, err
+			}
+		}
+		// Stop reconciliation as the item is being deleted
+		return r.finishReconcile(nil, false)
+	}
 
-	// Reconcilation when changes occur to the deployment
-	// if err := controllerutil.SetControllerReference(&misconfDeployment, deployment, r.scheme); err != nil {
-	//    return ctrl.Result{}, err
-	//}
+	// Get list of deployments
+	deploymentList := &kapps.DeploymentList{}
+	var mdDeploymentList []kapps.Deployment
 
-	// create deployment if it does not exist
-	// update deployment if it changes
-	foundDeployment := &kapps.Deployment{}
-	err := r.Get(ctx, types.NamespacedName{Name: deployment.Name, Namespace: deployment.Namespace}, foundDeployment)
-	if err != nil && errors.IsNotFound(err) {
-		l.V(1).Info("Creating Deployment", "deployment", deployment.Name)
-		err = r.Create(ctx, deployment)
-	} else if err == nil {
-		if foundDeployment.Spec.Replicas != deployment.Spec.Replicas {
-			foundDeployment.Spec.Replicas = deployment.Spec.Replicas
-			l.V(1).Info("Updating Deployment", "deployment", deployment.Name)
-			err = r.Update(ctx, foundDeployment)
+	if err := r.List(ctx, deploymentList); err != nil {
+		return r.finishReconcile(err, false)
+	}
+
+	cmExists := false
+	// Get list of deployments with annotation
+	for _, cm := range deploymentList.Items {
+		val, ok := cm.GetAnnotations()["anaisurl.com/misconfiguration"]
+		if ok && val == "true" {
+			mdDeploymentList = append(mdDeploymentList, cm)
+			cmExists = true
 		}
 	}
 
-	config := &v1alpha1.Configuration{}
-	errt := r.Get(ctx, req.NamespacedName, config)
+	for _, cm := range mdDeploymentList {
 
-	if errt != nil {
-		l.Error(err, "unable to fetch Configuration")
-		return ctrl.Result{}, client.IgnoreNotFound(err)
+		err := r.Get(ctx, types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, &cm)
+
+		// Update Deployment Spec
+		log.Info("Reconciling deployments" + cm.Name)
+		if err != nil && errors.IsNotFound(err) {
+			log.V(1).Info("Deplpyment is not found")
+			return r.finishReconcile(err, true)
+		} else if err == nil {
+			cm.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort = mdConf.Spec.ContainerPort
+			log.V(1).Info("Updating Deployment ContainerPort", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].Image = strings.Split(cm.Spec.Template.Spec.Containers[0].Image, ":")[0] + ":" + mdConf.Spec.ImageTag
+			log.V(1).Info("Updating Deployment ImageTag", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = &mdConf.Spec.AllowPrivilegeEscalation
+			log.V(1).Info("Updating Deployment PrivilegeEscalation", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].SecurityContext.RunAsNonRoot = &mdConf.Spec.RunAsNonRoot
+			log.V(1).Info("Updating Deployment RunAsNonRoot", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = &mdConf.Spec.ReadOnlyRootFilesystem
+			log.V(1).Info("Updating Deployment ReadOnlyRootFilesystem", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu().Set(mdConf.Spec.CPURequests)
+			log.V(1).Info("Updating Deployment CPURequests", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu().Set(mdConf.Spec.CPULimits)
+			log.V(1).Info("Updating Deployment CPULimits", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].Resources.Requests.Memory().Set(mdConf.Spec.MemoryRequests)
+			log.V(1).Info("Updating Deployment MemoryRequests", "deployment", cm.Name)
+
+			cm.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().Set(mdConf.Spec.MemoryLimits)
+			log.V(1).Info("Updating Deployment MemoryLimits", "deployment", cm.Name)
+
+			err := r.Client.Update(ctx, &cm)
+			if err != nil {
+				return r.finishReconcile(err, true)
+			}
+		}
 	}
 
-	l.Info("Reconciling Configuration", "name", config.Name, "namespace", config.Namespace, "labels", config.Labels)
+	if !cmExists {
+		if err := r.List(ctx, deploymentList); err != nil {
+			return r.finishReconcile(err, false)
+		}
+	}
 
 	return ctrl.Result{}, nil
+}
+
+func (r *ConfigurationReconciler) finishReconcile(err error, requeueImmediate bool) (ctrl.Result, error) {
+	if err != nil {
+		interval := reconcileErrorInterval
+		if requeueImmediate {
+			interval = 0
+		}
+		r.Log.Error(err, "Finished Reconciling Deployments with error: %w")
+		return ctrl.Result{Requeue: true, RequeueAfter: interval}, err
+	}
+	interval := reconcileSuccessInterval
+	if requeueImmediate {
+		interval = 0
+	}
+	r.Log.Info("Finished Reconciling Deployment")
+	return ctrl.Result{Requeue: true, RequeueAfter: interval}, nil
 }
 
 // SetupWithManager sets up the controller with the Manager.
 func (r *ConfigurationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&v1alpha1.Configuration{}).
+		For(&apiv1alpha1.Configuration{}).
 		Owns(&kapps.Deployment{}).
 		Complete(r)
 }
