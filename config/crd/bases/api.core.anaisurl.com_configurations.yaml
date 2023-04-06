@@ -46,24 +46,36 @@ spec:
                 description: Set Container Imagetag
                 type: string
               limits:
+                anyOf:
+                - type: integer
+                - type: string
                 description: CPU limits
-                format: int64
-                type: integer
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
               memorylimits:
+                anyOf:
+                - type: integer
+                - type: string
                 description: Memory limits
-                format: int64
-                type: integer
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
               memoryrequests:
+                anyOf:
+                - type: integer
+                - type: string
                 description: Memory requests
-                format: int64
-                type: integer
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
               readOnlyRootFilesystem:
                 description: Set readOnlyRootFilesystem
                 type: boolean
               requests:
+                anyOf:
+                - type: integer
+                - type: string
                 description: CPU requests
-                format: int64
-                type: integer
+                pattern: ^(\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))(([KMGTPE]i)|[numkMGTPE]|([eE](\+|-)?(([0-9]+(\.[0-9]*)?)|(\.[0-9]+))))?$
+                x-kubernetes-int-or-string: true
               runAsNonRoot:
                 description: Set runAsNonRoot
                 type: boolean

@@ -17,6 +17,7 @@ limitations under the License.
 package v1alpha1
 
 import (
+	"k8s.io/apimachinery/pkg/api/resource"
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
@@ -44,16 +45,16 @@ type ConfigurationSpec struct {
 	RunAsNonRoot bool `json:"runAsNonRoot,omitempty"`
 
 	// CPU limits
-	CPULimits int64 `json:"limits,omitempty"`
+	CPULimits resource.Quantity `json:"limits,omitempty"`
 
 	// Memory limits
-	MemoryLimits int64 `json:"memorylimits,omitempty"`
+	MemoryLimits resource.Quantity `json:"memorylimits,omitempty"`
 
 	//CPU requests
-	CPURequests int64 `json:"requests,omitempty"`
+	CPURequests resource.Quantity `json:"requests,omitempty"`
 
 	// Memory requests
-	MemoryRequests int64 `json:"memoryrequests,omitempty"`
+	MemoryRequests resource.Quantity `json:"memoryrequests,omitempty"`
 }
 
 // ConfigurationStatus defines the observed state of Configuration

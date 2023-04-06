@@ -16,7 +16,7 @@ package apps
 import (
 	"context"
 
-	appsv1 "k8s.io/api/apps/v1"
+	kapps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
@@ -45,24 +45,26 @@ type DeploymentReconciler struct {
 func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) (ctrl.Result, error) {
 	l := log.FromContext(ctx)
 
-	// TODO(user): your logic here
+	deployment := &kapps.Deployment{}
 
-	deployment := &appsv1.Deployment{}
+	// Get list of deployments with annotation
 	if err := r.Get(ctx, req.NamespacedName, deployment); err != nil {
 		return ctrl.Result{}, client.IgnoreNotFound(err)
 	}
 
 	l.Info("Deployment", "name", deployment.Name, "namespace", deployment.Namespace, "annotations", deployment.Annotations)
 
-	// if the pod is in the demo namespace, add the annotation to use append instead
-	if deployment.Namespace == "demo" {
-		deployment.Annotations = map[string]string{
-			"anaisurl.com/misconfiguration": "true",
-		}
-	}
+	val, ok := deployment.GetAnnotations()["anaisurl.com/misconfiguration"]
+	if ok && val == "false" {
+		val = "true"
 
-	if err := r.Update(ctx, deployment); err != nil {
-		return ctrl.Result{}, err
+		// Update deployment
+		deployment.SetAnnotations(map[string]string{"anaisurl.com/misconfiguration": val})
+
+		err := r.Client.Update(ctx, deployment)
+		if err != nil {
+			return ctrl.Result{}, err
+		}
 	}
 
 	return ctrl.Result{}, nil
@@ -71,6 +73,6 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 // SetupWithManager sets up the controller with the Manager.
 func (r *DeploymentReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
-		For(&appsv1.Deployment{}).
+		For(&kapps.Deployment{}).
 		Complete(r)
 }

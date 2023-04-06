@@ -3,6 +3,8 @@ kind: Deployment
 metadata:
   name: nginx-deployment
   namespace: demo
+  annotations:
+    anaisurl.com/misconfiguration: "false"
   labels:
     app: nginx
 spec:
@@ -19,11 +21,11 @@ spec:
       - name: nginx
         image: nginx:1.23
         resources:
-          requests:
-            memory: "64Mi"
-            cpu: "250m"
           limits:
             memory: "128Mi"
+            cpu: "500m"
+          requests:
+            memory: "64Mi"
             cpu: "250m"
         securityContext:
           allowPrivilegeEscalation: false

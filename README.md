@@ -1,31 +1,82 @@
-# controller
-// TODO(user): Add simple overview of use/purpose
+# Misconfiguration Operator for Security Chaos Engineering
 
 ## Description
-// TODO(user): An in-depth paragraph about your project and overview of use
 
-## Getting Started
-You’ll need a Kubernetes cluster to run against. You can use [KIND](https://sigs.k8s.io/kind) to get a local cluster for testing, or run against a remote cluster.
-**Note:** Your controller will automatically use the current context in your kubeconfig file (i.e. whatever cluster `kubectl cluster-info` shows).
+This controller introduces misconfiguration into Kubernetes deployments to test how well your security tooling and processes respond to misconfiguration.
 
-### Running on the cluster
-1. Install Instances of Custom Resources:
+**Philosophy**
+Usually, we are waiting around until misconfiguration are introduced into our environments by accident. By using this Misconfiguration Operator, we can intentionally test misconfiguration.
+If we test intentionally, we already know
+- what went wrong &
+- how to fix it
+
+This allows us to build a response pipeline in theory, which is then tested in practice.
+Resulting, we can then analyse whether the real response matches our expected response and
+- improve our security tooling and processes
+- remove unknows and guessing
+
+## Usage Guide
+To use the Operator, follow these steps:
+
+**Prerequisites:**
+- Access to a Kubernetes cluster, any Kubernetes cluster should work.
+
+**Install the Operator:**
+
+1. Clone the GitHub repository:
+
+```sh
+git clone https://github.com/AnaisUrlichs/security-controller
+```
+
+2. Install Instances of Custom Resources:
 
 ```sh
 kubectl apply -f config/samples/
 ```
 
-2. Build and push your image to the location specified by `IMG`:
-
-```sh
-make docker-build docker-push IMG=<some-registry>/controller:tag
-```
-
-3. Deploy the controller to the cluster with the image specified by `IMG`:
+3.. Deploy the controller to the cluster with the image specified by `IMG`:
 
 ```sh
 make deploy IMG=<some-registry>/controller:tag
 ```
+
+**Create a Custom Resource**
+
+The Custom Resources is required to define what changes the Operator should take on your deployments. The template looks as follows:
+```
+apiVersion: api.core.anaisurl.com/v1alpha1
+kind: Configuration
+metadata:
+  name: configuration-sample
+spec:
+  containerPort: 60
+  imageTag: "latest"
+  limits: 400
+  readOnlyRootFilesystem: false
+  requests: 300
+  runAsNonRoot: false
+  memoryrequests: 80
+  memorylimits: 130
+```
+
+Modify the template based on the changes that you would like the Operator to make on your deployments. 
+
+Next, apply the Custom Resource to your cluster
+```
+kubectl apply -f custom-resource.yaml
+```
+
+**Set your Deployemnts**
+
+Deployments will only be changed by the Operator if the following annotation is set in the deployment.yaml manifes:
+```
+metadata:
+    annotations:
+        anaisurl.com/misconfiguration: "true"
+```
+
+The deployment will be changed by the operator once per day for as long as it is running inside the Kubernetes cluster and the deployment has the annotation.
 
 ### Uninstall CRDs
 To delete the CRDs from the cluster:
@@ -42,7 +93,8 @@ make undeploy
 ```
 
 ## Contributing
-// TODO(user): Add detailed information on how you would like others to contribute to this project
+
+At this stage, I do not accept any contributions to this project as this is created as part of my Bachelor Thesis.
 
 ### How it works
 This project aims to follow the Kubernetes [Operator pattern](https://kubernetes.io/docs/concepts/extend-kubernetes/operator/).
@@ -75,6 +127,14 @@ make manifests
 **NOTE:** Run `make --help` for more information on all potential `make` targets
 
 More information can be found via the [Kubebuilder Documentation](https://book.kubebuilder.io/introduction.html)
+
+## Build and Push a new container image of the Kubernetes Operator
+
+3. Build and push your image to the location specified by `IMG`:
+
+```sh
+make docker-build docker-push IMG=<some-registry>/controller:tag
+```
 
 ## License
 

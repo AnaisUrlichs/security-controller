@@ -5,9 +5,9 @@ metadata:
 spec:
   containerPort: 60
   imageTag: "latest"
-  limits: 400
-  readOnlyRootFilesystem: true
-  requests: 300
-  runAsNonRoot: true
-  memoryrequests: 80
-  memorylimits: 130
+  limits: "600m"
+  readOnlyRootFilesystem: false
+  requests:  "300m"
+  runAsNonRoot: false
+  memoryrequests: "65Mi"
+  memorylimits: "130Mi"

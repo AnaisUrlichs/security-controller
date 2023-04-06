@@ -32,6 +32,7 @@ import (
 
 	apiv1alpha1 "github.com/AnaisUrlichs/security-controller/apis/api/v1alpha1"
 	kapps "k8s.io/api/apps/v1"
+	kcore "k8s.io/api/core/v1"
 )
 
 // ConfigurationReconciler reconciles a Configuration object
@@ -115,51 +116,38 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	for _, cm := range deploymentList.Items {
 		val, ok := cm.GetAnnotations()["anaisurl.com/misconfiguration"]
 		if ok && val == "true" {
-			mdDeploymentList = append(mdDeploymentList, cm)
 			cmExists = true
+			mdDeploymentList = append(mdDeploymentList, cm)
 		}
 	}
 
 	for _, cm := range mdDeploymentList {
 
 		err := r.Get(ctx, types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, &cm)
+		deploymentStatus := cm.Status.Conditions[0].Type
 
 		// Update Deployment Spec
 		log.Info("Reconciling deployments" + cm.Name)
 		if err != nil && errors.IsNotFound(err) {
 			log.V(1).Info("Deplpyment is not found")
 			return r.finishReconcile(err, true)
-		} else if err == nil {
+		} else if err == nil && deploymentStatus == "Available" {
 			cm.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort = mdConf.Spec.ContainerPort
-			log.V(1).Info("Updating Deployment ContainerPort", "deployment", cm.Name)
-
 			cm.Spec.Template.Spec.Containers[0].Image = strings.Split(cm.Spec.Template.Spec.Containers[0].Image, ":")[0] + ":" + mdConf.Spec.ImageTag
-			log.V(1).Info("Updating Deployment ImageTag", "deployment", cm.Name)
-
 			cm.Spec.Template.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = &mdConf.Spec.AllowPrivilegeEscalation
-			log.V(1).Info("Updating Deployment PrivilegeEscalation", "deployment", cm.Name)
-
 			cm.Spec.Template.Spec.Containers[0].SecurityContext.RunAsNonRoot = &mdConf.Spec.RunAsNonRoot
-			log.V(1).Info("Updating Deployment RunAsNonRoot", "deployment", cm.Name)
-
 			cm.Spec.Template.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = &mdConf.Spec.ReadOnlyRootFilesystem
-			log.V(1).Info("Updating Deployment ReadOnlyRootFilesystem", "deployment", cm.Name)
+			cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceCPU] = mdConf.Spec.CPURequests
+			cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceCPU] = mdConf.Spec.CPULimits
+			cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceMemory] = mdConf.Spec.MemoryRequests
+			cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceMemory] = mdConf.Spec.MemoryLimits
 
-			cm.Spec.Template.Spec.Containers[0].Resources.Requests.Cpu().Set(mdConf.Spec.CPURequests)
-			log.V(1).Info("Updating Deployment CPURequests", "deployment", cm.Name)
-
-			cm.Spec.Template.Spec.Containers[0].Resources.Limits.Cpu().Set(mdConf.Spec.CPULimits)
-			log.V(1).Info("Updating Deployment CPULimits", "deployment", cm.Name)
-
-			cm.Spec.Template.Spec.Containers[0].Resources.Requests.Memory().Set(mdConf.Spec.MemoryRequests)
-			log.V(1).Info("Updating Deployment MemoryRequests", "deployment", cm.Name)
-
-			cm.Spec.Template.Spec.Containers[0].Resources.Limits.Memory().Set(mdConf.Spec.MemoryLimits)
-			log.V(1).Info("Updating Deployment MemoryLimits", "deployment", cm.Name)
+			val := "false"
+			cm.Annotations["anaisurl.com/misconfiguration"] = val
 
 			err := r.Client.Update(ctx, &cm)
 			if err != nil {
-				return r.finishReconcile(err, true)
+				r.finishReconcile(err, true)
 			}
 		}
 	}
