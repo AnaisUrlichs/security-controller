@@ -27,7 +27,6 @@ import (
 	"k8s.io/apimachinery/pkg/types"
 	ctrl "sigs.k8s.io/controller-runtime"
 	"sigs.k8s.io/controller-runtime/pkg/client"
-	"sigs.k8s.io/controller-runtime/pkg/controller/controllerutil"
 	"sigs.k8s.io/controller-runtime/pkg/log"
 
 	apiv1alpha1 "github.com/AnaisUrlichs/security-controller/apis/api/v1alpha1"
@@ -53,12 +52,9 @@ const (
 // +kubebuilder:rbac:groups=api.core.anaisurl.com,resources=configurations/finalizers,verbs=update
 // +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
 // +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;list;watch;create;update;patch;delete
+//
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Configuration object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
@@ -68,7 +64,6 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 	log.Info("Reconciling deployments")
 
 	mdConf := &apiv1alpha1.Configuration{}
-	mdConfFinalizer := mdConf.GetFinalizers()
 
 	if err := r.Client.Get(ctx, req.NamespacedName, mdConf); err != nil {
 		if errors.IsNotFound(err) {
@@ -80,25 +75,7 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		return r.finishReconcile(err, false)
 	}
 
-	if mdConf.ObjectMeta.DeletionTimestamp.IsZero() {
-		// The object is not being deleted, so if it does not have our finalizer,
-		// then lets add the finalizer and update the object. This is equivalent
-		// registering our finalizer.
-		if mdConfFinalizer == nil {
-			controllerutil.AddFinalizer(mdConf, annotationName)
-			if err := r.Update(ctx, mdConf); err != nil {
-				return r.finishReconcile(err, false)
-			}
-		}
-
-	} else {
-		// The object is being deleted
-		if mdConfFinalizer != nil {
-			controllerutil.RemoveFinalizer(mdConf, annotationName)
-			if err := r.Update(ctx, mdConf); err != nil {
-				return ctrl.Result{}, err
-			}
-		}
+	if !mdConf.ObjectMeta.DeletionTimestamp.IsZero() {
 		// Stop reconciliation as the item is being deleted
 		return r.finishReconcile(nil, false)
 	}
@@ -141,6 +118,7 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceCPU] = mdConf.Spec.CPULimits
 			cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceMemory] = mdConf.Spec.MemoryRequests
 			cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceMemory] = mdConf.Spec.MemoryLimits
+			cm.Annotations["anaisurl.com/last-updated"] = time.Now().Format(time.RFC3339)
 
 			val := "false"
 			cm.Annotations["anaisurl.com/misconfiguration"] = val

@@ -4,7 +4,7 @@ metadata:
   name: nginx-deployment
   namespace: demo
   annotations:
-    anaisurl.com/misconfiguration: "false"
+    anaisurl.com/misconfiguration: "true"
   labels:
     app: nginx
 spec:

@@ -21,13 +21,8 @@ import (
 	metav1 "k8s.io/apimachinery/pkg/apis/meta/v1"
 )
 
-// EDIT THIS FILE!  THIS IS SCAFFOLDING FOR YOU TO OWN!
-// NOTE: json tags are required.  Any new fields you add must have json tags for the fields to be serialized.
-
-// ConfigurationSpec defines the desired state of Configuration
+// ConfigurationSpec defines the desired state of the Misconfiguration to be applied to deployments
 type ConfigurationSpec struct {
-	// INSERT ADDITIONAL SPEC FIELDS - desired st ate of cluster
-	// Important: Run "make" to regenerate code after modifying this file
 
 	// Set Container Imagetag
 	ImageTag string `json:"imageTag,omitempty"`

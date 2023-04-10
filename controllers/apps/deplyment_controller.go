@@ -15,6 +15,7 @@ package apps
 
 import (
 	"context"
+	"time"
 
 	kapps "k8s.io/api/apps/v1"
 	"k8s.io/apimachinery/pkg/runtime"
@@ -29,16 +30,12 @@ type DeploymentReconciler struct {
 	Scheme *runtime.Scheme
 }
 
-//+kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
-//+kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;update;patch
-//+kubebuilder:rbac:groups=apps,resources=deployments/finalizers,verbs=update
-
+// +kubebuilder:rbac:groups=apps,resources=deployments,verbs=get;list;watch;create;update;patch;delete
+// +kubebuilder:rbac:groups=apps,resources=deployments/status,verbs=get;update;patch
+// +kubebuilder:rbac:groups=apps,resources=deployments/finalizers,verbs=update
+//
 // Reconcile is part of the main kubernetes reconciliation loop which aims to
 // move the current state of the cluster closer to the desired state.
-// TODO(user): Modify the Reconcile function to compare the state specified by
-// the Deployment object against the actual cluster state, and then
-// perform operations to make the cluster state reflect the state specified by
-// the user.
 //
 // For more details, check Reconcile and its Result here:
 // - https://pkg.go.dev/sigs.k8s.io/controller-runtime@v0.14.1/pkg/reconcile
@@ -54,17 +51,30 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	l.Info("Deployment", "name", deployment.Name, "namespace", deployment.Namespace, "annotations", deployment.Annotations)
 
+	lastUpdated, has := deployment.GetAnnotations()["anaisurl.com/last-updated"]
 	val, ok := deployment.GetAnnotations()["anaisurl.com/misconfiguration"]
-	if ok && val == "false" {
-		val = "true"
 
-		// Update deployment
-		deployment.SetAnnotations(map[string]string{"anaisurl.com/misconfiguration": val})
+	// check if lastUpdated is more than 1 minutes
+	if ok && val == "false" && has {
 
-		err := r.Client.Update(ctx, deployment)
-		if err != nil {
-			return ctrl.Result{}, err
+		lastUpdatedTime, err := time.Parse(time.RFC3339, lastUpdated)
+
+		if time.Now().Sub(lastUpdatedTime) > 5*time.Minute {
+			val = "true"
+			// Update deployment
+			deployment.SetAnnotations(map[string]string{"anaisurl.com/misconfiguration": val})
+			deployment.Annotations["anaisurl.com/last-updated"] = time.Now().Format(time.RFC3339)
+
+			err := r.Client.Update(ctx, deployment)
+			if err != nil {
+				return ctrl.Result{}, err
+			}
 		}
+
+		if err != nil {
+			return ctrl.Result{}, client.IgnoreNotFound(err)
+		}
+
 	}
 
 	return ctrl.Result{}, nil

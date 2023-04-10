@@ -133,7 +133,7 @@ More information can be found via the [Kubebuilder Documentation](https://book.k
 3. Build and push your image to the location specified by `IMG`:
 
 ```sh
-make docker-build docker-push IMG=<some-registry>/controller:tag
+make docker-buildx docker-push
 ```
 
 ## License
