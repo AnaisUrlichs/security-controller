@@ -98,39 +98,39 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 		}
 	}
 
-	for _, cm := range mdDeploymentList {
+	if cmExists == true {
+		for _, cm := range mdDeploymentList {
 
-		err := r.Get(ctx, types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, &cm)
-		deploymentStatus := cm.Status.Conditions[0].Type
+			err := r.Get(ctx, types.NamespacedName{Name: cm.Name, Namespace: cm.Namespace}, &cm)
+			deploymentStatus := cm.Status.Conditions[0].Type
 
-		// Update Deployment Spec
-		log.Info("Reconciling deployments" + cm.Name)
-		if err != nil && errors.IsNotFound(err) {
-			log.V(1).Info("Deplpyment is not found")
-			return r.finishReconcile(err, true)
-		} else if err == nil && deploymentStatus == "Available" {
-			cm.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort = mdConf.Spec.ContainerPort
-			cm.Spec.Template.Spec.Containers[0].Image = strings.Split(cm.Spec.Template.Spec.Containers[0].Image, ":")[0] + ":" + mdConf.Spec.ImageTag
-			cm.Spec.Template.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = &mdConf.Spec.AllowPrivilegeEscalation
-			cm.Spec.Template.Spec.Containers[0].SecurityContext.RunAsNonRoot = &mdConf.Spec.RunAsNonRoot
-			cm.Spec.Template.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = &mdConf.Spec.ReadOnlyRootFilesystem
-			cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceCPU] = mdConf.Spec.CPURequests
-			cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceCPU] = mdConf.Spec.CPULimits
-			cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceMemory] = mdConf.Spec.MemoryRequests
-			cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceMemory] = mdConf.Spec.MemoryLimits
-			cm.Annotations["anaisurl.com/last-updated"] = time.Now().Format(time.RFC3339)
+			// Update Deployment Spec
+			log.Info("Reconciling deployments" + cm.Name)
+			if err != nil && errors.IsNotFound(err) {
+				log.V(1).Info("Deplpyment is not found")
+				return r.finishReconcile(err, true)
+			} else if err == nil && deploymentStatus == "Available" {
+				cm.Spec.Template.Spec.Containers[0].Ports[0].ContainerPort = mdConf.Spec.ContainerPort
+				cm.Spec.Template.Spec.Containers[0].Image = strings.Split(cm.Spec.Template.Spec.Containers[0].Image, ":")[0] + ":" + mdConf.Spec.ImageTag
+				cm.Spec.Template.Spec.Containers[0].SecurityContext.AllowPrivilegeEscalation = &mdConf.Spec.AllowPrivilegeEscalation
+				cm.Spec.Template.Spec.Containers[0].SecurityContext.RunAsNonRoot = &mdConf.Spec.RunAsNonRoot
+				cm.Spec.Template.Spec.Containers[0].SecurityContext.ReadOnlyRootFilesystem = &mdConf.Spec.ReadOnlyRootFilesystem
+				cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceCPU] = mdConf.Spec.CPURequests
+				cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceCPU] = mdConf.Spec.CPULimits
+				cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceMemory] = mdConf.Spec.MemoryRequests
+				cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceMemory] = mdConf.Spec.MemoryLimits
+				cm.Annotations["anaisurl.com/last-updated"] = time.Now().Format(time.RFC3339)
 
-			val := "false"
-			cm.Annotations["anaisurl.com/misconfiguration"] = val
+				val := "false"
+				cm.Annotations["anaisurl.com/misconfiguration"] = val
 
-			err := r.Client.Update(ctx, &cm)
-			if err != nil {
-				r.finishReconcile(err, true)
+				err := r.Client.Update(ctx, &cm)
+				if err != nil {
+					r.finishReconcile(err, true)
+				}
 			}
 		}
-	}
-
-	if !cmExists {
+	} else {
 		if err := r.List(ctx, deploymentList); err != nil {
 			return r.finishReconcile(err, false)
 		}
