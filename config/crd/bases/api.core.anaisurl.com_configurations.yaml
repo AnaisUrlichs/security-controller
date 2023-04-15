@@ -33,7 +33,8 @@ spec:
           metadata:
             type: object
           spec:
-            description: ConfigurationSpec defines the desired state of Configuration
+            description: ConfigurationSpec defines the desired state of the Misconfiguration
+              to be applied to deployments
             properties:
               allowPrivilegeEscalation:
                 description: Set allowPrivilegeEscalation

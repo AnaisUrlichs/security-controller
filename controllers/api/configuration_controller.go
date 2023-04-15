@@ -119,10 +119,9 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 				cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceCPU] = mdConf.Spec.CPULimits
 				cm.Spec.Template.Spec.Containers[0].Resources.Requests[kcore.ResourceMemory] = mdConf.Spec.MemoryRequests
 				cm.Spec.Template.Spec.Containers[0].Resources.Limits[kcore.ResourceMemory] = mdConf.Spec.MemoryLimits
-				cm.Annotations["anaisurl.com/last-updated"] = time.Now().Format(time.RFC3339)
 
-				val := "false"
-				cm.Annotations["anaisurl.com/misconfiguration"] = val
+				cm.Annotations["anaisurl.com/last-updated"] = time.Now().Format(time.RFC3339)
+				cm.Annotations["anaisurl.com/misconfiguration"] = "false"
 
 				err := r.Client.Update(ctx, &cm)
 				if err != nil {
@@ -131,9 +130,7 @@ func (r *ConfigurationReconciler) Reconcile(ctx context.Context, req ctrl.Reques
 			}
 		}
 	} else {
-		if err := r.List(ctx, deploymentList); err != nil {
-			return r.finishReconcile(err, false)
-		}
+		return ctrl.Result{}, nil
 	}
 
 	return ctrl.Result{}, nil
@@ -156,7 +153,7 @@ func (r *ConfigurationReconciler) finishReconcile(err error, requeueImmediate bo
 	return ctrl.Result{Requeue: true, RequeueAfter: interval}, nil
 }
 
-// SetupWithManager sets up the controller with the Manager.
+// SetupWithManager sets up the controller with the Manager in main.go
 func (r *ConfigurationReconciler) SetupWithManager(mgr ctrl.Manager) error {
 	return ctrl.NewControllerManagedBy(mgr).
 		For(&apiv1alpha1.Configuration{}).
