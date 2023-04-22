@@ -51,11 +51,11 @@ func (r *DeploymentReconciler) Reconcile(ctx context.Context, req ctrl.Request) 
 
 	l.Info("Deployment", "name", deployment.Name, "namespace", deployment.Namespace, "annotations", deployment.Annotations)
 
-	lastUpdated, has := deployment.GetAnnotations()["anaisurl.com/last-updated"]
+	lastUpdated := deployment.GetCreationTimestamp().Time.Format(time.RFC3339)
 	val, ok := deployment.GetAnnotations()["anaisurl.com/misconfiguration"]
 
 	// check if lastUpdated is more than 1 minutes
-	if ok && val == "false" && has {
+	if ok && val == "false" {
 
 		lastUpdatedTime, err := time.Parse(time.RFC3339, lastUpdated)
 

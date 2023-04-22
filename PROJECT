@@ -11,6 +11,7 @@ repo: github.com/AnaisUrlichs/security-controller
 resources:
 - api:
     crdVersion: v1
+    namespaced: true
   controller: true
   domain: core.anaisurl.com
   group: api

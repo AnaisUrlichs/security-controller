@@ -16,7 +16,7 @@ Resulting, we can then analyse whether the real response matches our expected re
 - remove unknows and guessing
 
 ## Usage Guide
-To use the Operator, follow these steps:
+To use the Operator, follow these steps.
 
 **Prerequisites:**
 - Access to a Kubernetes cluster, any Kubernetes cluster should work.
@@ -29,17 +29,13 @@ To use the Operator, follow these steps:
 git clone https://github.com/AnaisUrlichs/security-controller
 ```
 
-2. Install Instances of Custom Resources:
+2.  Deploy the controller to the cluster::
 
 ```sh
-kubectl apply -f config/samples/
+make install
 ```
 
-3.. Deploy the controller to the cluster with the image specified by `IMG`:
-
-```sh
-make deploy IMG=<some-registry>/controller:tag
-```
+Note that this will use the controller image specified in the Makefile.
 
 **Create a Custom Resource**
 
@@ -69,7 +65,7 @@ kubectl apply -f custom-resource.yaml
 
 **Set your Deployemnts**
 
-Deployments will only be changed by the Operator if the following annotation is set in the deployment.yaml manifes:
+Deployments will only be changed by the Operator if the following annotation is set in the deployment.yaml manifest:
 ```
 metadata:
     annotations:
@@ -77,6 +73,10 @@ metadata:
 ```
 
 The deployment will be changed by the operator once per day for as long as it is running inside the Kubernetes cluster and the deployment has the annotation.
+
+Otherwise, the reconcilation loop will run if either of the following is true:
+1. A new Operator CRD with misconfiguration is deployed to the Kubernetes cluster and the same namespace contains a deployment with the Operator annotation is set to "true".
+2. A new Deployment is applied to the cluster and the Operator annotation is set to "true".
 
 ### Uninstall CRDs
 To delete the CRDs from the cluster:
@@ -92,6 +92,20 @@ UnDeploy the controller from the cluster:
 make undeploy
 ```
 
+## Operator Design
+
+![Operator Process Overview](./assets/operator-process-crd.png)
+
+Once the Kubernetes Operator is installed inside the Kubernetes cluster, it will go through the following steps:
+
+1. Check whether it can find an Operator CRD that tells it which modifications to make on the Kubernetes Deployment. If it is not provided with a CRD, it will not look for a Kubernetes Deployment as it does not know which misconfiguration to apply.
+2. Access all Deployments through the Kubernetes API that are running inside the cluster.
+3. Check which Deployments contain the annotation needed to make modifications. If no Kubernetes Deployments are identified, the Operator will not apply the misconfigurations specified in the Operator CRD to any Deployment.
+4. If the Operator identifies Deployments that contain the annotation, it will add them to a separate list of Deployments.
+5. If the list is not empty, the Operator will iterate through the new list of Deployments and make modifications to each Deployment in accordance with the misconfiguration provided in the Operator CRD.
+6. Lastly, it will set the value of ‘anaisurl.com/misconfiguration’ to false. This will prevent the Operator controller loop from trying to access the same Deployment again. The Operator CRD might be modified, which does not mean that the Operator should apply the new misconfiguration to the Deployment that has already been changed.
+
+
 ## Contributing
 
 At this stage, I do not accept any contributions to this project as this is created as part of my Bachelor Thesis.
@@ -106,7 +120,7 @@ which provide a reconcile function responsible for synchronizing resources until
 1. Install the CRDs into the cluster:
 
 ```sh
-make install
+make deploy
 ```
 
 2. Run your controller (this will run in the foreground, so switch to a new terminal if you want to leave it running):
@@ -133,7 +147,7 @@ More information can be found via the [Kubebuilder Documentation](https://book.k
 3. Build and push your image to the location specified by `IMG`:
 
 ```sh
-make docker-buildx docker-push
+make docker-buildx
 ```
 
 ## License
